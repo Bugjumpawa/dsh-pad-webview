@@ -21,6 +21,7 @@ import android.view.Gravity;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
 import android.view.View;
 import android.view.ViewGroup;
@@ -67,9 +68,11 @@ public class MainActivity extends Activity {
             + "if(window.__dshPadKbHooked)return;window.__dshPadKbHooked=true;"
             // 只有"用户刚刚点了输入框"才允许键盘；页面的 autofocus 一律 blur。
             + "window.__dshPadComposerTs=0;"
-            + "var isInput=function(el){return !!(el&&/^(INPUT|TEXTAREA)$/.test(el.tagName))};"
+            // DSH 的输入框是 contenteditable 的 DIV，不是 textarea —— 必须按可编辑性判断
+            + "var EDITABLE='input,textarea,[contenteditable=\"\"],[contenteditable=true]';"
+            + "var isInput=function(el){return !!(el&&(el.isContentEditable||/^(INPUT|TEXTAREA)$/.test(el.tagName)))};"
             + "var mark=function(ev){var t=ev.target;if(!t)return;"
-            + "var el=t.closest?t.closest('input,textarea'):null;"
+            + "var el=t.closest?t.closest(EDITABLE):null;"
             + "if(isInput(t)||el){window.__dshPadComposerTs=Date.now();}};"
             + "document.addEventListener('touchstart',mark,{capture:true,passive:true});"
             + "document.addEventListener('mousedown',mark,{capture:true,passive:true});"
@@ -78,8 +81,17 @@ public class MainActivity extends Activity {
             + "var t=ev.target;if(!isInput(t))return;"
             + "if(Date.now()-window.__dshPadComposerTs<40000)return;"
             + "var now=Date.now();attempts=now-lastTry<600?attempts+1:1;lastTry=now;"
-            + "if(attempts>5)return;" // 页面死循环抢焦点时别再对着干
-            + "try{t.blur();}catch(e){}},true);"
+            + "try{t.blur();}catch(e){}"
+            + "try{if(window.DshPad&&DshPad.blockKeyboard)DshPad.blockKeyboard();}catch(e){}"
+            + "},true);"
+            // 会话切换走 history API，focus 往往在渲染后几百毫秒才发生：
+            // 路由变化后补几枪，但用户刚点过输入框就放过。
+            + "var guard=function(){if(Date.now()-window.__dshPadComposerTs<1200)return;"
+            + "try{if(window.DshPad&&DshPad.blockKeyboard)DshPad.blockKeyboard();}catch(e){}};"
+            + "try{['pushState','replaceState'].forEach(function(k){var o=history[k];"
+            + "history[k]=function(){var r=o.apply(this,arguments);"
+            + "setTimeout(guard,50);setTimeout(guard,400);setTimeout(guard,1000);return r};});}catch(e){}"
+            + "window.addEventListener('popstate',function(){setTimeout(guard,50);setTimeout(guard,400);});"
             + "})();";
     /** 页面里的 blob:/data: 下载不会把 a[download] 的文件名交给原生，必须在 JS 侧截住。 */
     private static final String DOWNLOAD_HOOK = "(function(){"
@@ -326,6 +338,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                hideIme();
                 errorShown = false;
                 bar.setVisibility(View.VISIBLE);
             }
@@ -560,12 +573,41 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** 页面自己抢焦点时，让原生立刻把软键盘收掉（JS blur 在部分 ROM 上不够）。 */
+        @JavascriptInterface
+        public void blockKeyboard() {
+            Log.i("DshPadKb", "blockKeyboard");
+            runOnUiThread(new Runnable() {
+                @Override public void run() { hideIme(); }
+            });
+        }
+
         @JavascriptInterface
         public void failed(final String reason) {
             runOnUiThread(new Runnable() {
                 @Override public void run() { toast("下载失败：" + reason); }
             });
         }
+    }
+
+    private long lastImeHideAt;
+
+    private void hideIme() {
+        if (web == null) return;
+        long now = SystemClock.uptimeMillis();
+        if (now - lastImeHideAt < 250) return; // 页面连续抢焦点时别刷屏
+        lastImeHideAt = now;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController controller = getWindow().getInsetsController();
+                if (controller != null) controller.hide(WindowInsets.Type.ime());
+            }
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) imm.hideSoftInputFromWindow(web.getWindowToken(), 0);
+        } catch (RuntimeException ignored) {
+            // 部分 ROM 在窗口未 attach 时抛异常
+        }
+        web.clearFocus();
     }
 
     private void jsDownload(String url, String name, String mime) {
