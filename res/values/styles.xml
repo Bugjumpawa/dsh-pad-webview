@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_bg</item>
+        <!-- 全屏：进应用就不要状态栏（导航条保留，方便退出手势） -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:statusBarColor">@color/app_bg</item>
+        <item name="android:navigationBarColor">@color/app_bg</item>
+    </style>
+
+    <style name="SettingsTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+</resources>

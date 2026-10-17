@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  关键：targetSdk >= 24 的 app 默认只信系统 CA。
+  平板上的 ca.crt 装在“用户证书”库里，必须显式声明 src="user"，
+  否则 8443 的自签证书会直接 SSL 报错。
+  局域网 8790 中继是明文 HTTP，因此 base-config 允许 cleartext。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

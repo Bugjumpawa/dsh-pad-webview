@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DSH Pad</string>
+    <string name="settings_title">DSH Pad 设置</string>
+    <string name="shortcut_settings">设置入口地址</string>
+</resources>
