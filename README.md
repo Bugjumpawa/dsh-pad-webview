@@ -38,7 +38,9 @@ third-party dependencies, zero Gradle).
   a confirmation and explains how to re-pair.
 - **Keyboard discipline** — the Harness SPA autofocuses the composer on session switch; on a tablet
   that means a keyboard popping up out of nowhere. Programmatic focus is blurred unless the user
-  tapped the composer within the last 40 s.
+  tapped the composer within the last 40 s. The composer is a `contenteditable` div (not a
+  `<textarea>`), so the check is `isContentEditable` — a plain INPUT/TEXTAREA test silently misses it,
+  which is exactly why the first attempt at this fix did nothing.
 - **401 hint** — if the main document returns 401, an overlay explains that the cookie is gone and
   how to re-pair instead of showing a blank page.
 - **Crash resilience** — `onRenderProcessGone` recreates the view instead of taking the app down.
